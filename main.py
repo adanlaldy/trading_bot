@@ -1,52 +1,135 @@
-# 1st condition : condition si une bougie cloture en dehors des bandes BB -> verification si signal (marteau)
 import MetaTrader5 as mt5
 import pandas as pd
-import matplotlib.pyplot as plt
+import time
 
-# connexion à MetaTrader 5
-if not mt5.initialize():
-    print("initialize() a échoué")
+# ohlc variables
+symbol = "[DJI30]"
+timeframe = mt5.TIMEFRAME_M5
+start_pos = 0
+end_pos = 100
+# bb variables
+window_size = 20
+num_std_dev = 2
+
+
+def get_ohlc_data(symbol, timeframe, start_pos, end_pos):
+    # Connexion à MetaTrader 5
+    if not mt5.initialize():
+        print("initialize() a échoué")
+        return
+
+    # Récupère les données OHLC du Dow Jones
+    dow_data = mt5.copy_rates_from_pos(symbol, timeframe, start_pos, end_pos)
+
+    # Ferme la connexion à MetaTrader 5
     mt5.shutdown()
 
-# demande l'état et les paramètres de connexion
-print(mt5.terminal_info())
-# récupère les données sur la version MetaTrader 5
-print(mt5.version())
+    # Convertit les données en DataFrame pandas
+    df = pd.DataFrame(dow_data)
+    df['time'] = pd.to_datetime(df['time'], unit='s')
+    df.set_index('time', inplace=True)
 
-# Symbol du Dow Jones (ou tout autre actif que vous souhaitez analyser)
-symbol = "EURUSD"  # <----- pas d'accès au DJ sur mt5
+    # Sélectionne uniquement les colonnes OHLC
+    df = df[['open', 'high', 'low', 'close']]
 
-# Récupère les données du Dow Jones
-dow_data = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M5, 0, 100)
+    return df
 
-# ferme la connexion à MetaTrader 5
-mt5.shutdown()
 
-# Convertit les données en DataFrame pandas
-df = pd.DataFrame(dow_data)
-df['time'] = pd.to_datetime(df['time'], unit='s')
-df.set_index('time', inplace=True)
+def calculate_bollinger_bands(df, window_size, num_std_dev):
+    # Calcule la moyenne mobile simple (SMA)
+    df['SMA'] = df['close'].rolling(window=window_size).mean()
 
-# Calcul des bandes de Bollinger
-window = 20  # Fenêtre de calcul pour la moyenne mobile et l'écart-type
-df['rolling_mean'] = df['close'].rolling(window=window).mean()
-df['rolling_std'] = df['close'].rolling(window=window).std()
-df['upper_band'] = df['rolling_mean'] + 2 * df['rolling_std']
-df['lower_band'] = df['rolling_mean'] - 2 * df['rolling_std']
+    # Calcule l'écart type
+    df['std_dev'] = df['close'].rolling(window=window_size).std()
 
-# Tracer le graphique avec les bandes de Bollinger
-plt.figure(figsize=(12, 6))
-plt.plot(df.index, df['close'], label='Dow Jones')
-plt.plot(df.index, df['upper_band'], label='Upper Bollinger Band')
-plt.plot(df.index, df['lower_band'], label='Lower Bollinger Band')
-plt.fill_between(df.index, df['upper_band'], df['lower_band'], alpha=0.2)
-plt.xlabel('Date')
-plt.ylabel('Prix')
-plt.title('Graphique Dow Jones avec les bandes de Bollinger')
-plt.legend()
-plt.show()
+    # Calcule les bandes de Bollinger supérieure et inférieure
+    df['upper_band'] = df['SMA'] + num_std_dev * df['std_dev']
+    df['lower_band'] = df['SMA'] - num_std_dev * df['std_dev']
 
-# TODO:
-#  - Récupérer les données du Dow Jones en 5 minutes
-#  - Modifier le graphique pour avoir des chandeliers japonais
-#  - Faire une boucle pour que le programme continue tant que la condition n'est pas remplie
+    return df
+
+
+while True:
+    ohlc_df = get_ohlc_data(symbol, timeframe, start_pos, end_pos)
+    last_open = ohlc_df['open'].iloc[-1]
+    last_close = ohlc_df['close'].iloc[-1]
+    last_high = ohlc_df['high'].iloc[-1]
+    last_low = ohlc_df['low'].iloc[-1]
+
+    last_body = last_open - last_close
+
+    # Si bougie baissière
+    if last_body < 0:
+        last_body = abs(last_body)
+        upper_wick = last_high - last_close
+        lower_wick = last_open - last_low
+    # Si bougie haussière
+    else:
+        upper_wick = last_high - last_open
+        lower_wick = last_low - last_close
+
+    # Utilisation de la fonction pour calculer les Bollinger Bands
+    bollinger_bands_df = calculate_bollinger_bands(ohlc_df, window_size, num_std_dev)
+    upper_band = round(bollinger_bands_df['upper_band'].iloc[-1], 2)
+    lower_band = round(bollinger_bands_df['lower_band'].iloc[-1], 2)
+    sma = round(bollinger_bands_df['SMA'].iloc[-1], 2)
+
+    print("Fermeture de la dernière bougie en M5 :")
+    print("higher:", last_high)
+    print("lower:", last_low)
+    print("open:", last_open)
+    print("Close:", last_close)
+    print("body:", last_body)
+    print("upper wick:", upper_wick)
+    print("lower wick", lower_wick)
+
+    print("\nBollinger Bands pour la dernière bougie en 5 minutes :")
+    print("Bande haute:", upper_band)
+    print("Bande basse:", lower_band)
+    print("Moyenne mobile:", sma)
+
+    # Vérifie si la dernière bougie en M5 sort des bandes supérieure ou inférieure
+
+    # position vendeuse
+    if last_close > upper_band:
+        # Attendre 5 minutes avant de récupérer les nouvelles données
+        time.sleep(300)
+
+        # collect new data for the new candle
+        ohlc_df = get_ohlc_data(symbol, timeframe, start_pos, end_pos)
+        last_open = ohlc_df['open'].iloc[-1]
+        last_close = ohlc_df['close'].iloc[-1]
+        last_high = ohlc_df['high'].iloc[-1]
+        last_low = ohlc_df['low'].iloc[-1]
+
+        last_body = last_open - last_close
+
+        # Si bougie baissière
+        if last_body < 0:
+            last_body = abs(last_body)
+            upper_wick = last_high - last_close
+            lower_wick = last_open - last_low
+        # Si bougie haussière
+        else:
+            upper_wick = last_high - last_open
+            lower_wick = last_low - last_close
+
+        # Utilisation de la fonction pour calculer les Bollinger Bands
+        bollinger_bands_df = calculate_bollinger_bands(ohlc_df, window_size, num_std_dev)
+        upper_band = round(bollinger_bands_df['upper_band'].iloc[-1], 2)
+        lower_band = round(bollinger_bands_df['lower_band'].iloc[-1], 2)
+        sma = round(bollinger_bands_df['SMA'].iloc[-1], 2)
+
+        # condition pour avoir un marteau (signal d'entrée)
+        if upper_wick * 3 >= last_body & lower_wick <= last_body | lower_wick * 3 >= last_body & upper_wick <= last_body:
+            # condition pour que le marteau ne touche pas la bande supérieur des BB
+            if not last_low <= upper_band | last_close <= upper_band:
+            # condition pour que le RR >=2 -> calculer le ration stop loss(sl)(5point diff avec mèche supérieur) avec le take profit(tp)niveau mm
+            # condition pour le temps
+            print("on vend à la clôture de la bougie !")
+
+    # position acheteuse
+    elif last_close < lower_band:
+
+    else:
+        break
