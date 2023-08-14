@@ -1,7 +1,10 @@
 import MetaTrader5 as mt5
 import pandas as pd
 import time
+import datetime
 
+in_position = False
+stop_loss = 00005.0
 # ohlc variables
 symbol = "[DJI30]"
 timeframe = mt5.TIMEFRAME_M5
@@ -10,6 +13,17 @@ end_pos = 100
 # bb variables
 window_size = 20
 num_std_dev = 2
+
+
+def is_market_open():
+    now = datetime.datetime.now()
+    market_open_time = now.replace(hour=14, minute=30, second=0, microsecond=0)
+    market_close_time = now.replace(hour=18, minute=30, second=0, microsecond=0)
+
+    if market_open_time <= now <= market_close_time:
+        return True
+    else:
+        return False
 
 
 def get_ohlc_data(symbol, timeframe, start_pos, end_pos):
@@ -48,13 +62,13 @@ def calculate_bollinger_bands(df, window_size, num_std_dev):
 
     return df
 
+while (in_position == False) and (is_market_open() == True):
 
-while True:
     ohlc_df = get_ohlc_data(symbol, timeframe, start_pos, end_pos)
-    last_open = ohlc_df['open'].iloc[-1]
-    last_close = ohlc_df['close'].iloc[-1]
-    last_high = ohlc_df['high'].iloc[-1]
-    last_low = ohlc_df['low'].iloc[-1]
+    last_open = ohlc_df['open'].iloc[-2]
+    last_close = ohlc_df['close'].iloc[-2]
+    last_high = ohlc_df['high'].iloc[-2]
+    last_low = ohlc_df['low'].iloc[-2]
 
     last_body = last_open - last_close
 
@@ -72,7 +86,7 @@ while True:
     bollinger_bands_df = calculate_bollinger_bands(ohlc_df, window_size, num_std_dev)
     upper_band = round(bollinger_bands_df['upper_band'].iloc[-1], 2)
     lower_band = round(bollinger_bands_df['lower_band'].iloc[-1], 2)
-    sma = round(bollinger_bands_df['SMA'].iloc[-1], 2)
+    sma = round(bollinger_bands_df['SMA'].iloc[-2], 2)
 
     print("Fermeture de la dernière bougie en M5 :")
     print("higher:", last_high)
@@ -88,19 +102,23 @@ while True:
     print("Bande basse:", lower_band)
     print("Moyenne mobile:", sma)
 
-    # Vérifie si la dernière bougie en M5 sort des bandes supérieure ou inférieure
+    stopp = last_high + stop_loss
+    tpp = last_close - sma
+    print("STOP LOSS:", stopp)
+    print("TAKE PROFIT:", last_close - sma * 2)
 
+    # Vérifie si la dernière bougie en M5 sort des bandes supérieure ou inférieure
     # position vendeuse
     if last_close > upper_band:
-        # Attendre 5 minutes avant de récupérer les nouvelles données
+        # Attendre 5 minutes avant de récupérer les nouvelles données (signal)
         time.sleep(300)
 
         # collect new data for the new candle
         ohlc_df = get_ohlc_data(symbol, timeframe, start_pos, end_pos)
-        last_open = ohlc_df['open'].iloc[-1]
-        last_close = ohlc_df['close'].iloc[-1]
-        last_high = ohlc_df['high'].iloc[-1]
-        last_low = ohlc_df['low'].iloc[-1]
+        last_open = ohlc_df['open'].iloc[-2]
+        last_close = ohlc_df['close'].iloc[-2]
+        last_high = ohlc_df['high'].iloc[-2]
+        last_low = ohlc_df['low'].iloc[-2]
 
         last_body = last_open - last_close
 
@@ -116,20 +134,29 @@ while True:
 
         # Utilisation de la fonction pour calculer les Bollinger Bands
         bollinger_bands_df = calculate_bollinger_bands(ohlc_df, window_size, num_std_dev)
-        upper_band = round(bollinger_bands_df['upper_band'].iloc[-1], 2)
-        lower_band = round(bollinger_bands_df['lower_band'].iloc[-1], 2)
-        sma = round(bollinger_bands_df['SMA'].iloc[-1], 2)
+        upper_band = round(bollinger_bands_df['upper_band'].iloc[-2], 2)
+        lower_band = round(bollinger_bands_df['lower_band'].iloc[-2], 2)
+        sma = round(bollinger_bands_df['SMA'].iloc[-2], 2)
 
         # condition pour avoir un marteau (signal d'entrée)
-        if upper_wick * 3 >= last_body & lower_wick <= last_body | lower_wick * 3 >= last_body & upper_wick <= last_body:
+        if ((upper_wick * 3 >= last_body) and (lower_wick <= last_body)) or ((lower_wick * 3 >= last_body) and (upper_wick <= last_body)):
             # condition pour que le marteau ne touche pas la bande supérieur des BB
-            if not last_low <= upper_band | last_close <= upper_band:
-            # condition pour que le RR >=2 -> calculer le ration stop loss(sl)(5point diff avec mèche supérieur) avec le take profit(tp)niveau mm
-            # condition pour le temps
-            print("on vend à la clôture de la bougie !")
+            if not ((last_low <= upper_band) or (last_close <= upper_band)):
+                # condition pour que le RR >=2
+                sl = last_high + stop_loss
+                if last_close - sma * 2 >= sl:
+                    # condition pour la plage horaire
+                    print("on vend !")
+                    in_position = True
+                    break
 
     # position acheteuse
     elif last_close < lower_band:
-
+        """
+        oui
+        """
     else:
-        break
+        time.sleep(300)
+
+while datetime.datetime.now() < datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day, 21, 55):
+    print("break even blablabla")
