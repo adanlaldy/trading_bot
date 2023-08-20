@@ -62,8 +62,22 @@ def calculate_bollinger_bands(df, window_size, num_std_dev):
 
     return df
 
-while (in_position == False) and (is_market_open() == True):
 
+while (in_position == False) and (is_market_open() == True):
+    # Attendre que le dernier chiffre des minutes soit 0 ou 5
+    print("Attente que la dernière chiffre des minutes soit un 5 ou un 0...")
+    while True:
+        current_time = datetime.datetime.now()
+        last_digit_of_minute = current_time.minute % 10
+
+        if last_digit_of_minute == 0 or last_digit_of_minute == 5:
+            if current_time.second == 0:
+                print("La dernière chiffre des minutes est un 5 ou un 0. Commencement de la boucle !")
+                break
+        else:
+            time.sleep(1)  # Attendre 1 seconde
+
+    # collect new data for the new candle
     ohlc_df = get_ohlc_data(symbol, timeframe, start_pos, end_pos)
     last_open = ohlc_df['open'].iloc[-2]
     last_close = ohlc_df['close'].iloc[-2]
@@ -134,12 +148,13 @@ while (in_position == False) and (is_market_open() == True):
 
         # Utilisation de la fonction pour calculer les Bollinger Bands
         bollinger_bands_df = calculate_bollinger_bands(ohlc_df, window_size, num_std_dev)
-        upper_band = round(bollinger_bands_df['upper_band'].iloc[-2], 2)
-        lower_band = round(bollinger_bands_df['lower_band'].iloc[-2], 2)
+        upper_band = round(bollinger_bands_df['upper_band'].iloc[-1], 2)
+        lower_band = round(bollinger_bands_df['lower_band'].iloc[-1], 2)
         sma = round(bollinger_bands_df['SMA'].iloc[-2], 2)
 
         # condition pour avoir un marteau (signal d'entrée)
-        if ((upper_wick * 3 >= last_body) and (lower_wick <= last_body)) or ((lower_wick * 3 >= last_body) and (upper_wick <= last_body)):
+        if ((upper_wick * 3 >= last_body) and (lower_wick <= last_body)) or (
+                (lower_wick * 3 >= last_body) and (upper_wick <= last_body)):
             # condition pour que le marteau ne touche pas la bande supérieur des BB
             if not ((last_low <= upper_band) or (last_close <= upper_band)):
                 # condition pour que le RR >=2
@@ -158,5 +173,6 @@ while (in_position == False) and (is_market_open() == True):
     else:
         time.sleep(300)
 
-while datetime.datetime.now() < datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day, 21, 55):
+while datetime.datetime.now() < datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month,
+                                                  datetime.datetime.now().day, 21, 55):
     print("break even blablabla")
