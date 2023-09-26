@@ -62,6 +62,7 @@ def calculate_bollinger_bands(df, window_size, num_std_dev):
 
     return df
 
+#if market is close
 """ and (is_market_open() == True)"""
 while (in_position == False):
     # Attendre que le dernier chiffre des minutes soit 0 ou 5
@@ -223,8 +224,8 @@ while datetime.datetime.now() < datetime.datetime(datetime.datetime.now().year, 
                                                   datetime.datetime.now().day, 21, 55):
     print("ordre de fermeture de position")
 
-#TODO: - valeur de la bande haute et basse approximatif + MM des fois juste des fois non
-#      - implémenter tous les odres (sell,buy,tp,sl)
+#TODO: - valeur de la bande haute et basse approximatif + MM des fois juste et des fois non
+#      - to fix timing between the 5min candles to collect datas
+#      - gérer les lots + implémenter tous les odres (sell,buy,tp,sl)
 #      - in position (modif ordre SL -> BE == niveau d'entrée)
 #      - close automatically (close position)
-
