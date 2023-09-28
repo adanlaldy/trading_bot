@@ -27,7 +27,6 @@ def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0)
         # Initialize the bound between MT5 and Python
     mt5.initialize()
 
-
     """
     FILLING NE FONCTIONNE PAS SUR LE DOW
     -------------------------------------------------------
@@ -72,7 +71,7 @@ def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0)
             "sl": sl,
             "tp": tp,
         }
-
+        print(mt5.order_send(request))
         result = mt5.order_send(request)
         return result
 
@@ -89,7 +88,7 @@ def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0)
             "magic": magic,
             "comment": comment,
             "type_filling": mt5.ORDER_FILLING_FOK,
-            "type_time": mt5.ORDER_TIME_GTC}
+            "type_time": mt5.ORDER_TIME_GTC},
 
         result = mt5.order_send(request)
         return result
@@ -205,13 +204,6 @@ while (in_position == False):
     lower_band = round(bollinger_bands_df['lower_band'].iloc[-1], 2)
     sma = round(bollinger_bands_df['SMA'].iloc[-2], 2)
 
-    # ------------------------------------------------------------------------------------------------
-    # test de prise de position
-    sl = last_low - stop_loss
-    tp = last_close + sma * 2
-    send_order(symbol, lot, True, False, sl, tp, None, "buy order", 0)
-    # ------------------------------------------------------------------------------------------------
-
     print("Fermeture de la dernière bougie en M5 :")
     print("higher:", last_high)
     print("lower:", last_low)
@@ -267,7 +259,7 @@ while (in_position == False):
                 sl = last_high + stop_loss
                 tp = last_close - sma * 2
                 if tp >= sl:
-                    #send_order(symbol, lot, False, True, sl, tp, {None}, "sell order", 0)
+                    send_order(symbol, lot, False, True, sl, sma, None, "sell order", 0)
                     in_position = True
                     break
 
@@ -311,7 +303,7 @@ while (in_position == False):
                 tp = last_close + sma * 2
                 if tp >= sl:
                     # Place buy order
-                    #send_order(symbol, lot, True, False, sl, tp, {}, "buy order", 0)
+                    send_order(symbol, lot, True, False, sl, sma, None, "buy order", 0)
                     in_position = True
                     break
     # est-ce que le prog attends la prochaine bougie 5min ?
@@ -328,6 +320,6 @@ while datetime.datetime.now() < datetime.datetime(datetime.datetime.now().year, 
 
 # TODO: - valeur de la bande haute et basse approximatif + MM des fois juste et des fois non
 #      - to fix timing between the 5min candles to collect datas
-#      - gérer les lots + implémenter tous les odres (sell,buy,tp,sl)
+#      - vendre les positions
 #      - in position (modif ordre SL -> BE == niveau d'entrée)
 #      - close automatically (close position)
