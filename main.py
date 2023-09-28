@@ -3,13 +3,13 @@ import pandas as pd
 import time
 import datetime
 
+symbol = "[DJI30]"
 in_position = False
 stop_loss = 00005.0
 lot = 0.01
 # Choose the deviation
 deviation = 1
 # ohlc variables
-symbol = "[DJI30]"
 timeframe = mt5.TIMEFRAME_M5
 start_pos = 0
 end_pos = 100
@@ -19,11 +19,23 @@ num_std_dev = 2
 
 
 def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0):
-    # Initialize the bound between MT5 and Python
+    # establish connection to the MetaTrader 5 terminal
+    if not mt5.initialize():
+        print("initialize() failed, error code =", mt5.last_error())
+        quit()
+
+        # Initialize the bound between MT5 and Python
     mt5.initialize()
 
+
+    """
+    FILLING NE FONCTIONNE PAS SUR LE DOW
+    -------------------------------------------------------
     # Extract filling_mode
     filling_type = mt5.symbol_info(symbol).filling_mode
+    -------------------------------------------------------
+    """
+
 
     """ OPEN A TRADE """
     if buy and id_position == None:
@@ -36,7 +48,7 @@ def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0)
             "deviation": 10,
             "magic": magic,
             "comment": comment,
-            "type_filling": filling_type,
+            "type_filling": mt5.ORDER_FILLING_FOK,
             "type_time": mt5.ORDER_TIME_GTC,
             "sl": sl,
             "tp": tp,
@@ -55,7 +67,7 @@ def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0)
             "deviation": 10,
             "magic": magic,
             "comment": comment,
-            "type_filling": filling_type,
+            "type_filling": mt5.ORDER_FILLING_FOK,
             "type_time": mt5.ORDER_TIME_GTC,
             "sl": sl,
             "tp": tp,
@@ -76,7 +88,7 @@ def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0)
             "deviation": 10,
             "magic": magic,
             "comment": comment,
-            "type_filling": filling_type,
+            "type_filling": mt5.ORDER_FILLING_FOK,
             "type_time": mt5.ORDER_TIME_GTC}
 
         result = mt5.order_send(request)
@@ -93,10 +105,11 @@ def send_order(symbol, lot, buy, sell, sl, tp, id_position, comment="", magic=0)
             "deviation": 10,
             "magic": magic,
             "comment": comment,
-            "type_filling": filling_type,
+            "type_filling": mt5.ORDER_FILLING_FOK,
             "type_time": mt5.ORDER_TIME_GTC}
 
         result = mt5.order_send(request)
+        mt5.shutdown()
         return result
 
 
@@ -151,6 +164,7 @@ def calculate_bollinger_bands(df, window_size, num_std_dev):
 # if market is close
 """ and (is_market_open() == True)"""
 while (in_position == False):
+    """
     # Attendre que le dernier chiffre des minutes soit 0 ou 5
     print("Attente que la dernière chiffre des minutes soit un 5 ou un 0...")
     while True:
@@ -163,6 +177,8 @@ while (in_position == False):
                 break
         else:
             time.sleep(1)  # Attendre 1 seconde
+            
+    """
 
     # collect new data for the new candle
     ohlc_df = get_ohlc_data(symbol, timeframe, start_pos, end_pos)
@@ -210,16 +226,6 @@ while (in_position == False):
     print("Bande basse:", lower_band)
     print("Moyenne mobile:", sma)
 
-    """
-    ------------------------------------------------
-    INUTILE
-    
-    stopp = last_high + stop_loss
-    tpp = last_close - sma
-    print("STOP LOSS:", stopp)
-    print("TAKE PROFIT:", last_close - sma * 2)
-    ------------------------------------------------
-    """
 
     # Vérifie si la dernière bougie en M5 sort des bandes supérieure ou inférieure
     # position vendeuse
@@ -261,7 +267,7 @@ while (in_position == False):
                 sl = last_high + stop_loss
                 tp = last_close - sma * 2
                 if tp >= sl:
-                    send_order(symbol, lot, False, True, sl, tp, {None}, "sell order", 0)
+                    #send_order(symbol, lot, False, True, sl, tp, {None}, "sell order", 0)
                     in_position = True
                     break
 
@@ -305,7 +311,7 @@ while (in_position == False):
                 tp = last_close + sma * 2
                 if tp >= sl:
                     # Place buy order
-                    send_order(symbol, lot, True, False, sl, tp, {}, "buy order", 0)
+                    #send_order(symbol, lot, True, False, sl, tp, {}, "buy order", 0)
                     in_position = True
                     break
     # est-ce que le prog attends la prochaine bougie 5min ?
